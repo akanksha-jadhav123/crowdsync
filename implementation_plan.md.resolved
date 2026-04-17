@@ -1,0 +1,231 @@
+# CrowdSync — Smart Stadium Experience Application
+
+A complete smart stadium application that enhances physical event experiences by addressing crowd congestion, long wait times, navigation difficulties, and lack of real-time coordination.
+
+## Architecture Overview
+
+```mermaid
+graph TB
+    subgraph Frontend["Frontend (Vanilla HTML/CSS/JS)"]
+        D[Dashboard] --> SM[Stadium Map + Heatmap]
+        D --> QS[Queue Screen]
+        D --> FO[Food Ordering]
+        D --> EP[Emergency Panel]
+        D --> NP[Notifications]
+        D --> PR[Profile]
+    end
+
+    subgraph Backend["Backend (Node.js + Express)"]
+        API[REST API Layer] --> CWD[Crowd Controller]
+        API --> NAV[Navigation Controller]
+        API --> QUE[Queue Controller]
+        API --> FOD[Food Controller]
+        API --> EMG[Emergency Controller]
+        API --> USR[User Controller]
+    end
+
+    subgraph Realtime["Real-time Layer"]
+        WS[Socket.io WebSocket Server]
+    end
+
+    subgraph Data["Data Layer (SQLite)"]
+        DB[(SQLite Database)]
+    end
+
+    Frontend <-->|REST API| Backend
+    Frontend <-->|WebSocket| Realtime
+    Backend --> Data
+    Realtime --> Data
+```
+
+## Tech Stack
+
+| Layer | Technology | Rationale |
+|-------|-----------|-----------|
+| **Backend** | Node.js + Express | Fast API development, great ecosystem |
+| **Database** | SQLite (via better-sqlite3) | Zero-config, runs locally, no external DB needed |
+| **Real-time** | Socket.io | Bidirectional WebSocket for live heatmaps/notifications |
+| **Frontend** | Vanilla HTML + CSS + JS | Per project guidelines, rich aesthetics |
+| **Maps/Heatmaps** | Canvas API + custom rendering | No external dependency, full control |
+| **Icons** | Lucide Icons (CDN) | Modern, consistent iconography |
+| **Fonts** | Inter (Google Fonts) | Clean, modern typography |
+
+## Proposed Changes
+
+Work is organized into 4 phases matching the 4 agent roles.
+
+---
+
+### Phase 1 — Architecture & Data Design (Agent 1)
+
+#### [NEW] Project scaffolding & configuration
+
+- `package.json` — project metadata, scripts, dependencies
+- `.env` — environment config (PORT, DB path, JWT secret)
+- `README.md` — project documentation
+
+#### [NEW] [database/schema.sql](file:///c:/Users/akank/Downloads/crowdsync/database/schema.sql)
+SQLite schema defining all tables:
+
+**Users** — `id, name, email, password_hash, seat_section, seat_row, seat_number, avatar_url, role, created_at`
+
+**Zones** — `id, name, type (gate/concourse/stand/restroom/food_court), capacity, current_occupancy, coordinates_json, floor`
+
+**Crowd Data** — `id, zone_id, timestamp, density_level (0-100), movement_direction, sensor_count`
+
+**Queue Status** — `id, zone_id, facility_name, current_wait_minutes, queue_length, status, updated_at`
+
+**Food Vendors** — `id, name, zone_id, cuisine_type, is_open, avg_prep_minutes, image_url`
+
+**Menu Items** — `id, vendor_id, name, description, price, category, image_url, is_available`
+
+**Orders** — `id, user_id, vendor_id, items_json, total_price, status (pending/preparing/ready/picked_up), estimated_ready, created_at`
+
+**Emergency Alerts** — `id, user_id, type (medical/fire/security/lost_child), location_zone_id, description, status, priority, created_at, resolved_at`
+
+**Notifications** — `id, user_id, title, message, type, is_read, created_at`
+
+#### [NEW] [docs/api-spec.md](file:///c:/Users/akank/Downloads/crowdsync/docs/api-spec.md)
+API endpoint documentation for all routes.
+
+---
+
+### Phase 2 — Backend Development (Agent 2)
+
+#### [NEW] Server & middleware
+
+- `server.js` — Express server + Socket.io setup, CORS, middleware
+- `middleware/auth.js` — JWT authentication middleware
+- `database/init.js` — Database initialization + seed data
+
+#### [NEW] API Routes & Controllers
+
+| File | Endpoints |
+|------|-----------|
+| `routes/users.js` | POST `/register`, POST `/login`, GET `/profile`, PUT `/profile` |
+| `routes/crowd.js` | GET `/zones`, GET `/zones/:id`, GET `/heatmap`, WS `crowd:update` |
+| `routes/navigation.js` | GET `/navigate?from=&to=`, GET `/routes/optimal`, GET `/nearby/:type` |
+| `routes/queues.js` | GET `/queues`, GET `/queues/:zoneId`, WS `queue:update` |
+| `routes/food.js` | GET `/vendors`, GET `/vendors/:id/menu`, POST `/orders`, GET `/orders/:id`, PUT `/orders/:id/status` |
+| `routes/emergency.js` | POST `/emergency`, GET `/emergency/active`, PUT `/emergency/:id/resolve` |
+| `routes/notifications.js` | GET `/notifications`, PUT `/notifications/:id/read`, WS `notification:new` |
+
+#### [NEW] Real-time simulation engine
+
+- `services/simulator.js` — Generates realistic crowd density fluctuations, queue changes, and order status updates on timers to make the demo feel alive
+
+#### [NEW] Smart navigation algorithm
+
+- `services/navigation.js` — Dijkstra-based pathfinding across stadium zones, factoring in current crowd density to suggest least-congested routes
+
+---
+
+### Phase 3 — Frontend Development (Agent 3)
+
+All frontend files in `public/` served statically by Express.
+
+#### [NEW] Core layout & design system
+
+- `public/index.html` — SPA shell with sidebar navigation, glass-morphism dark theme
+- `public/css/index.css` — Complete design system: CSS variables, animations, glass cards, gradients, responsive grid
+- `public/js/app.js` — SPA router, Socket.io client, API helper, notification manager
+
+#### [NEW] Pages/Screens (each a JS module)
+
+| File | Screen | Key Features |
+|------|--------|--------------|
+| `public/js/pages/dashboard.js` | Dashboard | Live stats cards, mini heatmap, recent alerts, quick actions |
+| `public/js/pages/stadium-map.js` | Stadium Map | Interactive SVG stadium, canvas heatmap overlay, zone details on click |
+| `public/js/pages/queues.js` | Queue Tracker | Live wait times, progress bars, trends, facility filters |
+| `public/js/pages/food-order.js` | Food Ordering | Vendor cards, menu with cart, order tracking with status timeline |
+| `public/js/pages/emergency.js` | Emergency Panel | One-tap emergency buttons, active alerts list, status tracking |
+| `public/js/pages/notifications.js` | Notifications | Grouped notification feed, mark read, real-time toast notifications |
+| `public/js/pages/profile.js` | Profile | User info, seat assignment, order history, preferences |
+
+#### Design Aesthetic
+- **Dark theme** with deep navy/slate background (`#0a0e1a`)
+- **Glassmorphism** cards with backdrop blur and subtle borders
+- **Accent gradients** — cyan-to-purple for primary, amber for warnings, red for emergencies
+- **Micro-animations** — card hover lifts, progress bar pulses, skeleton loaders
+- **Responsive** — works on mobile and desktop
+
+---
+
+### Phase 4 — Integration & Testing (Agent 4)
+
+- Wire all frontend pages to real backend APIs
+- Ensure WebSocket events update UI in real-time
+- Test all user flows end-to-end:
+  - Registration → Login → Dashboard
+  - View heatmap → Navigate to zone
+  - Check queue → Order food → Track order
+  - Trigger emergency → View alert → Resolve
+- Fix bugs, polish animations, ensure data consistency
+- Final project cleanup and README
+
+---
+
+## Folder Structure
+
+```
+crowdsync/
+├── server.js                    # Express + Socket.io server
+├── package.json
+├── .env
+├── README.md
+├── database/
+│   ├── schema.sql               # SQLite schema
+│   ├── init.js                  # DB initialization + seed data
+│   └── crowdsync.db             # SQLite database (auto-created)
+├── middleware/
+│   └── auth.js                  # JWT auth middleware
+├── routes/
+│   ├── users.js
+│   ├── crowd.js
+│   ├── navigation.js
+│   ├── queues.js
+│   ├── food.js
+│   ├── emergency.js
+│   └── notifications.js
+├── services/
+│   ├── simulator.js             # Real-time data simulation
+│   └── navigation.js            # Smart pathfinding
+├── docs/
+│   └── api-spec.md
+└── public/
+    ├── index.html               # SPA shell
+    ├── css/
+    │   └── index.css            # Full design system
+    └── js/
+        ├── app.js               # SPA router + utilities
+        └── pages/
+            ├── dashboard.js
+            ├── stadium-map.js
+            ├── queues.js
+            ├── food-order.js
+            ├── emergency.js
+            ├── notifications.js
+            └── profile.js
+```
+
+## Verification Plan
+
+### Automated Tests
+- Start the server with `npm start` and verify it launches without errors
+- Test all API endpoints via the browser/frontend
+- Verify WebSocket connections deliver real-time updates
+
+### Manual Verification
+- Navigate through every page of the SPA
+- Confirm heatmap renders with live-updating density data
+- Place a food order and watch status progress in real-time
+- Trigger an emergency alert and verify it appears in the dashboard
+- Test responsive layout at mobile and desktop breakpoints
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Authentication**: I'll use simple JWT auth with a demo login (pre-seeded user). No OAuth/social login. Is that acceptable?
+
+> [!NOTE]
+> **Data simulation**: Since there's no real stadium hardware, the `simulator.js` service will generate realistic fluctuating crowd/queue data on timers. The app will feel "alive" with constantly updating numbers.
